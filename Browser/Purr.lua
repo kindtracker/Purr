@@ -111,23 +111,27 @@ function Renderer:Initialize()
   Renderer.Fonts = {}
 end
 
-function Renderer:LoadFont(FontName)
+function Renderer:LoadFont(FontName, FontSize)
+  Renderer.Fonts[FontName] = Renderer.Fonts[FontName] or {}
+
   local FontPath = "/usr/share/fonts/noto/" .. FontName:gsub("NotoSans", "NotoSans-") .. ".ttf"
 
-  local Font, Error = SDLTtf.open(FontPath, 32)
+  local Font, Error = SDLTtf.open(FontPath, FontSize)
 
-  Renderer.Fonts[FontName] = Font
+  Renderer.Fonts[FontName][FontSize] = Font
   return Font
 end
 
-function Renderer:GetFont(FontName)
-  local Font = Renderer.Fonts[FontName]
+function Renderer:GetFont(FontName, FontSize)
+  Renderer.Fonts[FontName] = Renderer.Fonts[FontName] or {}
+
+  local Font = Renderer.Fonts[FontName][FontSize]
 
   if Font then
     return Font
   end
 
-  return Renderer:LoadFont(FontName)
+  return Renderer:LoadFont(FontName, FontSize)
 end
 
 function Renderer:RenderInstance(Instance)
@@ -137,11 +141,13 @@ function Renderer:RenderInstance(Instance)
     local Surface = Font:renderUtf8(Instance.Text, "blended", Instance.FontColor)
     local Texture = Purr.SDLRenderer:createTextureFromSurface(Surface)
 
+    local Format, Access, Width, Height = Texture:query()
+
     Purr.SDLRenderer:copy(Texture, nil, {
-      x = 8,
-      y = 0 - 16,
-      w = 100,
-      h = 100,
+      x = 0,
+      y = 0,
+      w = Width,
+      h = Height,
     })
   end
 end
