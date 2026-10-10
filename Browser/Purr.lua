@@ -134,21 +134,25 @@ function Renderer:GetFont(FontName, FontSize)
   return Renderer:LoadFont(FontName, FontSize)
 end
 
+function Renderer:Text(Text, FontName, FontSize, X, Y)
+  local Font = Renderer:GetFont(FontName, FontSize)
+
+  local Surface = Font:renderUtf8(Text, "blended", FontColor)
+  local Texture = Purr.SDLRenderer:createTextureFromSurface(Surface)
+
+  local Format, Access, Width, Height = Texture:query()
+
+  Purr.SDLRenderer:copy(Texture, nil, {
+    x = 0,
+    y = 0,
+    w = Width,
+    h = Height,
+  })
+end
+
 function Renderer:RenderInstance(Instance)
   if Instance.ClassName == "Text" then
-    local Font = Renderer:GetFont(Instance.FontName, Instance.FontSize)
-
-    local Surface = Font:renderUtf8(Instance.Text, "blended", Instance.FontColor)
-    local Texture = Purr.SDLRenderer:createTextureFromSurface(Surface)
-
-    local Format, Access, Width, Height = Texture:query()
-
-    Purr.SDLRenderer:copy(Texture, nil, {
-      x = 0,
-      y = 0,
-      w = Width,
-      h = Height,
-    })
+    Renderer:Text(Instance.Text, Instance.FontName, Instance.FontSize, Instance.X, Instance.Y)
   end
 end
 
