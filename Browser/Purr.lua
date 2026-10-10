@@ -23,8 +23,8 @@ function TabRuntime.Text(Body, Options)
   return {
     ClassName = "Text",
     Text = Body,
-    FontSize = Options.FontSize or 24,
-    FontColor = Options.FontColor or 0xffffff,
+    FontSize = Options.FontSize or 16,
+    FontColor = Options.FontColor or 0x0,
     FontName = "NotoSansRegular",
   }
 end
@@ -111,40 +111,42 @@ function Renderer:Initialize()
   Renderer.Fonts = {}
 end
 
-function Renderer:LoadFont(FontName, FontSize)
-  Renderer.Fonts[FontName] = Renderer.Fonts[FontName] or {}
-
+function Renderer:LoadFont(FontName)
   local FontPath = "/usr/share/fonts/noto/" .. FontName:gsub("NotoSans", "NotoSans-") .. ".ttf"
-  local Font, Error = SDLTtf.open(FontPath, FontSize)
 
-  Renderer.Fonts[FontName][FontSize] = Font
+  local Font, Error = SDLTtf.open(FontPath, 32)
+
+  Renderer.Fonts[FontName] = Font
   return Font
 end
 
-function Renderer:GetFont(FontName, FontSize)
-  local BaseFonts = Renderer.Fonts[FontName]
+function Renderer:GetFont(FontName)
+  local Font = Renderer.Fonts[FontName]
 
-  if BaseFonts then
-    local Font = BaseFonts[FontSize]
-    if Font then
-      return Font
-    else
-      return Renderer:LoadFont(FontName, FontSize)
-    end
-  else
-    return Renderer:LoadFont(FontName, FontSize)
+  if Font then
+    return Font
   end
+
+  return Renderer:LoadFont(FontName)
 end
 
 function Renderer:RenderInstance(Instance)
   if Instance.ClassName == "Text" then
     local Font = Renderer:GetFont(Instance.FontName, Instance.FontSize)
 
-    Font:renderUtf8(Instance.Text, "solid", Instance.FontColor)
+    local Surface = Font:renderUtf8(Instance.Text, "blended", Instance.FontColor)
+    local Texture = Purr.SDLRenderer:createTextureFromSurface(Surface)
+
+    Purr.SDLRenderer:copy(Texture, nil, {
+      x = 8,
+      y = 0 - 16,
+      w = 100,
+      h = 100,
+    })
   end
 end
 
-function Purr:Frame()
+function Renderer:Frame()
   for Event in SDL.pollEvent() do
     if Event.type == SDL.event.Quit then
       Purr.Running = false
@@ -156,6 +158,8 @@ function Purr:Frame()
 
   Renderer:RenderInstance(Purr.Tab)
 
+  Purr.SDLRenderer:present()
+
   SDL.delay(Purr.Fps)
 end
 
@@ -166,7 +170,7 @@ function Purr.Main()
   end
 
   while Purr.Running do
-    Purr:Frame()
+    Renderer:Frame()
   end
 end
 
