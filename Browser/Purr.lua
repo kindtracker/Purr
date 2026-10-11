@@ -1,3 +1,4 @@
+local Nya = require("Nya")
 local SDL = require("SDL")
 local SDLTtf = require("SDL.ttf")
 
@@ -25,10 +26,14 @@ function TabRuntime.Text(Body, Options)
   return {
     ClassName = "Text",
     Text = Body,
+    TextColor = Options.TextColor or Nya.Color4.new(0, 0, 0, 1),
     FontSize = Options.FontSize or 16,
-    FontColor = Options.FontColor or 0x0,
     FontName = "NotoSansRegular",
   }
+end
+
+function TabRuntime:Initialize()
+  TabRuntime.Nya = Nya
 end
 
 function Purr:Initialize()
@@ -67,6 +72,8 @@ function Purr:InitializeRenderer()
 end
 
 function Purr:InitializeTab()
+  TabRuntime:Initialize()
+
   local TabFilePtr = io.open(Purr.TabFileName, "r")
 
   if TabFilePtr == nil then
@@ -136,10 +143,19 @@ function Renderer:GetFont(FontName, FontSize)
   return Renderer:LoadFont(FontName, FontSize)
 end
 
-function Renderer:Text(Text, FontName, FontSize, X, Y)
+function Renderer:GetColorFromColor4(Color)
+  local R = math.floor(Color.R * 255)
+  local G = math.floor(Color.G * 255)
+  local B = math.floor(Color.B * 255)
+  local A = math.floor(Color.A * 255)
+
+  return A * 16777216 + R * 65536 + G * 256 + B
+end
+
+function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
   local Font = Renderer:GetFont(FontName, FontSize)
 
-  local Surface = Font:renderUtf8(Text, "blended", FontColor)
+  local Surface = Font:renderUtf8(Text, "blended", Renderer:GetColorFromColor4(TextColor))
   local Texture = Purr.SDLRenderer:createTextureFromSurface(Surface)
 
   local Format, Access, Width, Height = Texture:query()
@@ -154,7 +170,7 @@ end
 
 function Renderer:RenderInstance(Instance)
   if Instance.ClassName == "Text" then
-    Renderer:Text(Instance.Text, Instance.FontName, Instance.FontSize, Instance.X, Instance.Y)
+    Renderer:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Instance.X, Instance.Y)
   end
 end
 
