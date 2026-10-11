@@ -17,6 +17,8 @@ local Purr = {
 local TabRuntime = {}
 local Renderer = {}
 
+local Instance = {}
+
 function TabRuntime.Text(Body, Options)
   Options = Options or {}
 
