@@ -1,4 +1,4 @@
-local Nya = require("Nya")
+local Nya = require("Browser/Nya")
 local SDL = require("SDL")
 local SDLTtf = require("SDL.ttf")
 
@@ -16,15 +16,14 @@ local Purr = {
 }
 
 local TabRuntime = {}
-local Renderer = {}
 
-local Instance = {}
+TabRuntime.Purr = {}
 
-function TabRuntime.Text(Body, Options)
+function TabRuntime.Purr.TextLabel(Body, Options)
   Options = Options or {}
 
   return {
-    ClassName = "Text",
+    ClassName = "TextLabel",
     Text = Body,
     TextColor = Options.TextColor or Nya.Color4.new(0, 0, 0, 1),
     FontSize = Options.FontSize or 16,
@@ -66,6 +65,8 @@ function Purr:InitializeCli()
     return
   end
 end
+
+local Renderer = {}
 
 function Purr:InitializeRenderer()
   Renderer:Initialize()
@@ -169,7 +170,7 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
 end
 
 function Renderer:RenderInstance(Instance)
-  if Instance.ClassName == "Text" then
+  if Instance.ClassName == "TextLabel" then
     Renderer:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Instance.X, Instance.Y)
   end
 end
