@@ -20,6 +20,39 @@ function Logger:Error(...)
   self:Log("Error", ...)
 end
 
+function Logger:PrintTable(Table, Indent, Seen)
+  Indent = Indent or 0
+  Seen = Seen or {}
+
+  if type(Table) ~= "table" then
+    print(string.rep("  ", Indent) .. tostring(Table))
+    return
+  end
+
+  if Seen[Table] then
+    print(string.rep("  ", Indent) .. "<cycle>")
+    return
+  end
+
+  Seen[Table] = true
+
+  print(string.rep("  ", Indent) .. "{")
+
+  for Key, Value in pairs(Table) do
+    local Prefix = string.rep("  ", Indent + 1) .. "[" .. tostring(Key) .. "] = "
+
+    if type(Value) == "table" then
+      io.write(Prefix)
+      self:PrintTable(Value, Indent + 1, Seen)
+    else
+      print(Prefix .. tostring(Value) .. ",")
+    end
+  end
+
+  print(string.rep("  ", Indent) .. "}")
+  Seen[Table] = nil
+end
+
 function Logger:Assert(Value, ...)
   if not Value then
     local Message = string.format(...)
@@ -72,27 +105,39 @@ function InstanceModule.new()
   }
 end
 
-local TextLabelModule = {}
-function TextLabelModule.new()
+local TextModule = {}
+function TextModule.new()
   local Options = TabRuntime.__Options or {}
 
   return {
     Text = Options.Body,
-    TextColor = Options.TextColor or Nya.Color4.new(0, 0, 0, 1),
-    FontSize = Options.FontSize or 16,
-    FontName = Options.FontName or "NotoSansRegular",
-    X = Options.X or 0,
-    Y = Options.Y or 0,
     Style = TabRuntime.Purr.__NewStyle__(Options.Style),
   }
 end
 
-function TabRuntime.Purr.new(TagName, Body, Options)
+local FrameModule = {}
+function FrameModule.new()
+  local Options = TabRuntime.__Options or {}
+
+  return {
+    Style = TabRuntime.Purr.__NewStyle__(Options.Style),
+  }
+end
+
+function TabRuntime.Purr.new(ClassName, Body, Options)
   Options = Options or {}
   Options.Body = Body
   TabRuntime.__Options = Options
 
-  return Nya.Instance.new(TagName)
+  local Instance = Nya.Instance.new(ClassName)
+
+  if ClassName == "Frame" then
+    for _, Child in pairs(Body) do
+      Child.Parent = Instance
+    end
+  end
+
+  return Instance
 end
 
 function TabRuntime.Purr.__NewStyle__(Options)
@@ -102,6 +147,10 @@ function TabRuntime.Purr.__NewStyle__(Options)
     Position = Options.Position or Nya.UDim2.new(0, 0, 0, 0),
     Size = Options.Size or Nya.UDim2.new(0, 0, 0, 0),
     AnchorPoint = Options.AnchorPoint or Nya.Vector2.new(0, 0),
+    BackgroundColor = Options.BackgroundColor or Nya.Color4.new(1, 1, 1, 0),
+    TextColor = Options.TextColor or Nya.Color4.new(0, 0, 0, 1),
+    FontSize = Options.FontSize or 16,
+    FontName = Options.FontName or "NotoSansRegular",
   }
 end
 
@@ -119,6 +168,39 @@ end
 
 function TabRuntime.Purr.Logger:Error(...)
   self:Log("Error", ...)
+end
+
+function TabRuntime.Purr.Logger:PrintTable(Table, Indent, Seen)
+  Indent = Indent or 0
+  Seen = Seen or {}
+
+  if type(Table) ~= "table" then
+    print(string.rep("  ", Indent) .. tostring(Table))
+    return
+  end
+
+  if Seen[Table] then
+    print(string.rep("  ", Indent) .. "<cycle>")
+    return
+  end
+
+  Seen[Table] = true
+
+  print(string.rep("  ", Indent) .. "{")
+
+  for Key, Value in pairs(Table) do
+    local Prefix = string.rep("  ", Indent + 1) .. "[" .. tostring(Key) .. "] = "
+
+    if type(Value) == "table" then
+      io.write(Prefix)
+      self:PrintTable(Value, Indent + 1, Seen)
+    else
+      print(Prefix .. tostring(Value) .. ",")
+    end
+  end
+
+  print(string.rep("  ", Indent) .. "}")
+  Seen[Table] = nil
 end
 
 function TabRuntime.Purr.Logger:Assert(Value, ...)
@@ -149,7 +231,8 @@ end
 
 function TabRuntime:Initialize()
   self.Nya = Nya
-  Nya.Instance:RegisterClass("TextLabel", TextLabelModule, InstanceModule)
+  Nya.Instance:RegisterClass("Text", TextModule, InstanceModule)
+  Nya.Instance:RegisterClass("Frame", FrameModule, InstanceModule)
 end
 
 function Purr:Initialize()
@@ -268,8 +351,8 @@ function Renderer:GetColorFromColor4(Color)
   return A * 16777216 + R * 65536 + G * 256 + B
 end
 
-function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, OffsetX, OffsetY)
-  Logger:AssertType(Text, "string", "TextLabel.Text must be a string, got %s", type(Text))
+function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, AnchorX, AnchorY)
+  Logger:AssertType(Text, "string", "Text.Text must be a string, got %s", type(Text))
 
   local Font = self:GetFont(FontName, FontSize)
   local Surface, SurfaceError = Font:renderUtf8(Text, "blended", self:GetColorFromColor4(TextColor))
@@ -283,8 +366,9 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, OffsetX, Offse
   )
 
   local Format, Access, Width, Height = Texture:query()
-  X = X - (Width * (OffsetX or 0))
-  Y = Y - (Height * (OffsetY or 0))
+
+  X = X - (Width * (AnchorX or 0))
+  Y = Y - (Height * (AnchorY or 0))
 
   Purr.SDLRenderer:copy(Texture, nil, {
     x = X or 0,
@@ -294,24 +378,44 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, OffsetX, Offse
   })
 end
 
+function Renderer:RenderText(Instance)
+  local Style = Instance.Style
+  local Layout = LayoutEngine:Calculate(Style, Purr.Window.Size)
+
+  self:Text(
+    Instance.Text,
+    Style.FontName or "NotoSansRegular",
+    Style.TextColor or Color3.new(1, 1, 1, 0),
+    Style.FontSize or 16,
+    Layout.Position.X,
+    Layout.Position.Y,
+    Layout.AnchorPoint.X,
+    Layout.AnchorPoint.Y
+  )
+end
+
+function Renderer:RenderFrame(Instance)
+  local Layout = LayoutEngine:Calculate(Instance.Style, Purr.Window.Size)
+  local Position = Layout.Position
+  local Size = Layout.Size
+  local Color = self:GetColorFromColor4(Instance.BackgroundColor)
+
+  Purr.SDLRenderer:setDrawColor(Color)
+  Purr.SDLRenderer:fillRect({
+    x = Position.X,
+    y = Position.Y,
+    w = Size.X,
+    h = Size.Y,
+  })
+end
+
 function Renderer:RenderInstance(Instance)
   Logger:AssertType(Instance, "table", "Expected an instance table, got %s", type(Instance))
 
-  if Instance.ClassName == "TextLabel" then
-    local Layout = LayoutEngine:Calculate(Instance.Style, Purr.Window.Size)
-    local Position = Layout.Position
-    local AnchorPoint = Layout.AnchorPoint
-
-    self:Text(
-      Instance.Text,
-      Instance.FontName,
-      Instance.TextColor,
-      Instance.FontSize,
-      Position.X,
-      Position.Y,
-      AnchorPoint.X,
-      AnchorPoint.Y
-    )
+  if Instance.ClassName == "Text" then
+    Renderer:RenderText(Instance)
+  elseif Instance.ClassName == "Frame" then
+    Renderer:RenderFrame(Instance)
   else
     Logger:Warning("Unsupported instance class: %s", tostring(Instance.ClassName))
   end
@@ -332,7 +436,7 @@ function Renderer:Frame()
   local WindowSizeX, WindowSizeY = Purr.SDLWindow:getSize()
   Purr.Window.Size = Nya.Vector2.new(WindowSizeX, WindowSizeY)
 
-  Purr.SDLRenderer:setDrawColor(0)
+  Purr.SDLRenderer:setDrawColor(0xffffff)
   Purr.SDLRenderer:clear()
   self:RenderInstance(Purr.Tab)
   Purr.SDLRenderer:present()

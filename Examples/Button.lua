@@ -1,1 +1,1 @@
-return TextButton("Meow")
+return Purr.new("TextButton", "Meow")
