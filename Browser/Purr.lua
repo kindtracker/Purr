@@ -65,13 +65,18 @@ Purr.TabRuntime = TabRuntime
 TabRuntime.Purr = {}
 TabRuntime.Purr.Logger = {}
 
-local TextLabelModule = {}
+local InstanceModule = {}
+function InstanceModule.new()
+  return {
+    Tags = {},
+  }
+end
 
+local TextLabelModule = {}
 function TextLabelModule.new()
   local Options = TabRuntime.__Options or {}
 
   return {
-    ClassName = "TextLabel",
     Text = Options.Body,
     TextColor = Options.TextColor or Nya.Color4.new(0, 0, 0, 1),
     FontSize = Options.FontSize or 16,
@@ -144,7 +149,7 @@ end
 
 function TabRuntime:Initialize()
   self.Nya = Nya
-  Nya.Instance:RegisterClass("TextLabel", TextLabelModule, Nya.Instance)
+  Nya.Instance:RegisterClass("TextLabel", TextLabelModule, InstanceModule)
 end
 
 function Purr:Initialize()
