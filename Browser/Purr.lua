@@ -50,6 +50,7 @@ end
 local Purr = {
   SDLWindow = nil,
   SDLRenderer = nil,
+  Window = {},
   Running = false,
   Fps = math.floor(1000 / 60),
   Tab = {},
@@ -77,6 +78,7 @@ function TextLabelModule.new()
     FontName = Options.FontName or "NotoSansRegular",
     X = Options.X or 0,
     Y = Options.Y or 0,
+    Style = TabRuntime.Purr.__NewStyle__(Options.Style),
   }
 end
 
@@ -86,6 +88,15 @@ function TabRuntime.Purr.new(TagName, Body, Options)
   TabRuntime.__Options = Options
 
   return Nya.Instance.new(TagName)
+end
+
+function TabRuntime.Purr.__NewStyle__(Options)
+  Options = Options or {}
+
+  return {
+    Position = Options.Position or Nya.UDim2.new(),
+    Size = Options.Size or Nya.UDim2.new(),
+  }
 end
 
 function TabRuntime.Purr.Logger:Log(Level, ...)
@@ -169,9 +180,23 @@ function Purr:InitializeTab()
   Logger:Info("Loaded tab %s", self.TabFileName)
 end
 
-local Renderer = {
-  Fonts = {},
-}
+local LayoutEngine = {}
+
+function LayoutEngine:Calculate(Style, ParentSize)
+  local Position = Style.Position or UDim2.new()
+  local Size = Style.Size or UDim2.new()
+
+  return {
+    Position = Nya.Vector2.new(
+      ParentSize.X * Position.X.Scale + Position.X.Offset,
+      ParentSize.Y * Position.Y.Scale + Position.Y.Offset
+    ),
+    Size = Nya.Vector2.new(ParentSize.X * Size.X.Scale + Size.X.Offset, ParentSize.Y * Size.Y.Scale + Size.Y.Offset),
+  }
+end
+
+local Renderer = {}
+Renderer.Fonts = {}
 
 Purr.Renderer = Renderer
 
@@ -243,13 +268,10 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
   Logger:AssertType(Text, "string", "TextLabel.Text must be a string, got %s", type(Text))
 
   local Font = self:GetFont(FontName, FontSize)
-
   local Surface, SurfaceError = Font:renderUtf8(Text, "blended", self:GetColorFromColor4(TextColor))
-
   Logger:Assert(Surface and type(Surface) ~= "string", "Failed to render text: %s", tostring(SurfaceError or Surface))
 
   local Texture, TextureError = Purr.SDLRenderer:createTextureFromSurface(Surface)
-
   Logger:Assert(
     Texture and type(Texture) ~= "string",
     "Failed to create text texture: %s",
@@ -257,7 +279,6 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
   )
 
   local Format, Access, Width, Height = Texture:query()
-
   Purr.SDLRenderer:copy(Texture, nil, {
     x = X or 0,
     y = Y or 0,
@@ -270,7 +291,10 @@ function Renderer:RenderInstance(Instance)
   Logger:AssertType(Instance, "table", "Expected an instance table, got %s", type(Instance))
 
   if Instance.ClassName == "TextLabel" then
-    self:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Instance.X, Instance.Y)
+    local Layout = LayoutEngine:Calculate(Instance.Style, Purr.Window.Size)
+    local Position = Layout.Position
+
+    self:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Position.X, Position.Y)
   else
     Logger:Warning("Unsupported instance class: %s", tostring(Instance.ClassName))
   end
@@ -287,11 +311,12 @@ function Renderer:Frame()
     end
   end
 
+  local WindowSizeX, WindowSizeY = Purr.SDLWindow:getSize()
+  Purr.Window.Size = Nya.Vector2.new(WindowSizeX, WindowSizeY)
+
   Purr.SDLRenderer:setDrawColor(0xFFFFFF)
   Purr.SDLRenderer:clear()
-
   self:RenderInstance(Purr.Tab)
-
   Purr.SDLRenderer:present()
 
   SDL.delay(Purr.Fps)

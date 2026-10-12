@@ -768,13 +768,8 @@ end
 
 local UDim2 = {}
 local UDim2Meta = {}
-local UDim
 
 UDim2Meta.__index = UDim2Meta
-
-function UDim2.__Lunar_Internal__Init__(udim)
-  UDim = udim
-end
 
 function UDim2.fromScale(X, Y)
   return UDim2.new(X, 0, Y, 0)
@@ -2215,6 +2210,7 @@ Nya.Signal = Signal
 Nya.Color3 = Color3
 Nya.Color4 = Color4
 Nya.UDim = UDim
+Nya.UDim2 = UDim2
 Nya.Vector2 = Vector2
 Nya.Vector3 = Vector3
 Nya.CFrame = CFrame
