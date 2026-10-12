@@ -240,13 +240,11 @@ function Renderer:LoadFont(FontName, FontSize)
   self.Fonts[FontName] = self.Fonts[FontName] or {}
 
   local FontPath = "/usr/share/fonts/noto/" .. FontName:gsub("NotoSans", "NotoSans-") .. ".ttf"
-
   local Font, FontError = SDLTtf.open(FontPath, FontSize)
 
   Logger:Assert(Font and type(Font) ~= "string", "Failed to load font %s: %s", FontPath, tostring(FontError or Font))
 
   self.Fonts[FontName][FontSize] = Font
-
   return Font
 end
 
@@ -280,8 +278,8 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, OffsetX, Offse
   )
 
   local Format, Access, Width, Height = Texture:query()
-  X = X - (Width / (OffsetX or 0) / 2)
-  Y = Y - (Height / (OffsetY or 0) / 2)
+  X = X - (Width * (OffsetX or 0))
+  Y = Y - (Height * (OffsetY or 0))
 
   Purr.SDLRenderer:copy(Texture, nil, {
     x = X or 0,
@@ -329,7 +327,7 @@ function Renderer:Frame()
   local WindowSizeX, WindowSizeY = Purr.SDLWindow:getSize()
   Purr.Window.Size = Nya.Vector2.new(WindowSizeX, WindowSizeY)
 
-  Purr.SDLRenderer:setDrawColor(0xFFFFFF)
+  Purr.SDLRenderer:setDrawColor(0)
   Purr.SDLRenderer:clear()
   self:RenderInstance(Purr.Tab)
   Purr.SDLRenderer:present()
