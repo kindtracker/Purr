@@ -94,8 +94,9 @@ function TabRuntime.Purr.__NewStyle__(Options)
   Options = Options or {}
 
   return {
-    Position = Options.Position or Nya.UDim2.new(),
-    Size = Options.Size or Nya.UDim2.new(),
+    Position = Options.Position or Nya.UDim2.new(0, 0, 0, 0),
+    Size = Options.Size or Nya.UDim2.new(0, 0, 0, 0),
+    AnchorPoint = Options.AnchorPoint or Nya.Vector2.new(0, 0),
   }
 end
 
@@ -183,8 +184,9 @@ end
 local LayoutEngine = {}
 
 function LayoutEngine:Calculate(Style, ParentSize)
-  local Position = Style.Position or UDim2.new()
-  local Size = Style.Size or UDim2.new()
+  local Position = Style.Position or Nya.UDim2.new(0, 0, 0, 0)
+  local Size = Style.Size or Nya.UDim2.new(0, 0, 0, 0)
+  local AnchorPoint = Style.AnchorPoint or Nya.Vector2.new(0, 0)
 
   return {
     Position = Nya.Vector2.new(
@@ -192,6 +194,7 @@ function LayoutEngine:Calculate(Style, ParentSize)
       ParentSize.Y * Position.Y.Scale + Position.Y.Offset
     ),
     Size = Nya.Vector2.new(ParentSize.X * Size.X.Scale + Size.X.Offset, ParentSize.Y * Size.Y.Scale + Size.Y.Offset),
+    AnchorPoint = AnchorPoint,
   }
 end
 
@@ -227,9 +230,7 @@ function Renderer:Initialize()
   )
 
   Purr.SDLRenderer = SDLRenderer
-
   SDLTtf.init(SDL.flags.Everything)
-
   Purr.Running = true
 
   Logger:Info("Renderer initialized")
@@ -264,7 +265,7 @@ function Renderer:GetColorFromColor4(Color)
   return A * 16777216 + R * 65536 + G * 256 + B
 end
 
-function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
+function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, OffsetX, OffsetY)
   Logger:AssertType(Text, "string", "TextLabel.Text must be a string, got %s", type(Text))
 
   local Font = self:GetFont(FontName, FontSize)
@@ -279,6 +280,9 @@ function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
   )
 
   local Format, Access, Width, Height = Texture:query()
+  X = X - (Width / (OffsetX or 0) / 2)
+  Y = Y - (Height / (OffsetY or 0) / 2)
+
   Purr.SDLRenderer:copy(Texture, nil, {
     x = X or 0,
     y = Y or 0,
@@ -293,8 +297,18 @@ function Renderer:RenderInstance(Instance)
   if Instance.ClassName == "TextLabel" then
     local Layout = LayoutEngine:Calculate(Instance.Style, Purr.Window.Size)
     local Position = Layout.Position
+    local AnchorPoint = Layout.AnchorPoint
 
-    self:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Position.X, Position.Y)
+    self:Text(
+      Instance.Text,
+      Instance.FontName,
+      Instance.TextColor,
+      Instance.FontSize,
+      Position.X,
+      Position.Y,
+      AnchorPoint.X,
+      AnchorPoint.Y
+    )
   else
     Logger:Warning("Unsupported instance class: %s", tostring(Instance.ClassName))
   end
@@ -311,6 +325,7 @@ function Renderer:Frame()
     end
   end
 
+  Purr.SDLWindow:setSize(800, 600)
   local WindowSizeX, WindowSizeY = Purr.SDLWindow:getSize()
   Purr.Window.Size = Nya.Vector2.new(WindowSizeX, WindowSizeY)
 
