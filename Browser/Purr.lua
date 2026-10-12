@@ -2,146 +2,191 @@ local Nya = require("Browser/Nya")
 local SDL = require("SDL")
 local SDLTtf = require("SDL.ttf")
 
+local Logger = {}
+
+function Logger:Log(Level, ...)
+  io.stderr:write(string.format("[%s] %s\n", Level, string.format(...)))
+end
+
+function Logger:Info(...)
+  self:Log("Info", ...)
+end
+
+function Logger:Warning(...)
+  self:Log("Warning", ...)
+end
+
+function Logger:Error(...)
+  self:Log("Error", ...)
+end
+
+function Logger:Assert(Value, ...)
+  if not Value then
+    local Message = string.format(...)
+    self:Error("%s", Message)
+    error(Message, 2)
+  end
+
+  return Value
+end
+
+function Logger:AssertType(Value, ExpectedType, ...)
+  if type(Value) ~= ExpectedType then
+    local Message
+
+    if select("#", ...) > 0 then
+      Message = string.format(...)
+    else
+      Message = string.format("Expected %s, got %s", ExpectedType, type(Value))
+    end
+
+    self:Error("%s", Message)
+    error(Message, 2)
+  end
+
+  return Value
+end
+
 local Purr = {
   SDLWindow = nil,
   SDLRenderer = nil,
   Running = false,
-  Fps = 1,
+  Fps = math.floor(1000 / 60),
   Tab = {},
   TabFileName = "",
-  Stop = false,
-
   TabRuntime = {},
   Renderer = {},
+  Logger = Logger,
 }
 
 local TabRuntime = {}
-
+Purr.TabRuntime = TabRuntime
 TabRuntime.Purr = {}
 
-function TabRuntime.Purr.TextLabel(Body, Options)
-  Options = Options or {}
+local TextLabelModule = {}
+
+function TextLabelModule.new()
+  local Options = TabRuntime.__Options or {}
 
   return {
     ClassName = "TextLabel",
-    Text = Body,
+    Text = Options.Body,
     TextColor = Options.TextColor or Nya.Color4.new(0, 0, 0, 1),
     FontSize = Options.FontSize or 16,
-    FontName = "NotoSansRegular",
+    FontName = Options.FontName or "NotoSansRegular",
+    X = Options.X or 0,
+    Y = Options.Y or 0,
   }
 end
 
+function TabRuntime.Purr.TextLabel(Body, Options)
+  Options = Options or {}
+  Options.Body = Body
+  TabRuntime.__Options = Options
+
+  return Nya.Instance.new("TextLabel")
+end
+
 function TabRuntime:Initialize()
-  TabRuntime.Nya = Nya
+  self.Nya = Nya
+  Nya.Instance:RegisterClass("TextLabel", TextLabelModule, Nya.Instance)
 end
 
 function Purr:Initialize()
-  Purr:InitializeRenderer()
-  if Purr.Stop then
-    return
-  end
-
-  Purr:InitializeCli()
-  if Purr.Stop then
-    return
-  end
-
-  Purr:InitializeTab()
-  if Purr.Stop then
-    return
-  end
+  self:InitializeCli()
+  self:InitializeRenderer()
+  self:InitializeTab()
 end
 
 function Purr:InitializeCli()
   for Index, Value in pairs(arg) do
     if Index > 0 then
-      Purr.TabFileName = Value
+      self.TabFileName = Value
+      break
     end
   end
 
-  if Purr.TabFileName == nil then
-    print("Purr: Need TabFileName")
-    Purr.Stop = true
-    return
-  end
-end
-
-local Renderer = {}
-
-function Purr:InitializeRenderer()
-  Renderer:Initialize()
+  Logger:Assert(self.TabFileName ~= "", "Missing TabFileName. Usage: luajit Browser/Purr.lua <file>")
 end
 
 function Purr:InitializeTab()
   TabRuntime:Initialize()
 
-  local TabFilePtr = io.open(Purr.TabFileName, "r")
-
-  if TabFilePtr == nil then
-    print(string.format("Purr: Couldn't open %s", Purr.TabFileName))
-    Purr.Stop = true
-    return
-  end
+  local TabFilePtr = Logger:Assert(io.open(self.TabFileName, "r"), "Couldn't open %s", self.TabFileName)
 
   local TabSource = TabFilePtr:read("*a")
   TabFilePtr:close()
 
   local TabFunction, LuaError = loadstring(TabSource)
 
-  if LuaError or TabFunction == nil then
-    print(string.format("Tab: Lua Error: %s", LuaError))
-    Purr.Stop = true
-    return
-  end
+  Logger:Assert(TabFunction, "Lua error in %s: %s", self.TabFileName, tostring(LuaError))
 
-  setfenv(TabFunction, Purr.TabRuntime)
+  setfenv(TabFunction, self.TabRuntime)
 
-  local Tab = TabFunction()
+  self.Tab = Logger:Assert(TabFunction(), "%s returned nil", self.TabFileName)
 
-  Purr.Tab = Tab
+  Logger:Info("Loaded tab %s", self.TabFileName)
+end
+
+local Renderer = {
+  Fonts = {},
+}
+
+Purr.Renderer = Renderer
+
+function Purr:InitializeRenderer()
+  Renderer:Initialize()
 end
 
 function Renderer:Initialize()
   SDL.init(SDL.flags.Everything)
 
-  Purr.SDLWindow = SDL.createWindow({
+  local Window, WindowError = SDL.createWindow({
     title = "Purr",
     width = 800,
     height = 600,
     flags = { SDL.window.Resizable },
   })
 
-  Purr.Running = true
-  Purr.Fps = math.floor((1 / 60) * 1000)
+  Logger:Assert(Window and type(Window) ~= "string", "Failed to create SDL window: %s", tostring(WindowError or Window))
 
-  Purr.SDLRenderer = SDL.createRenderer(Purr.SDLWindow, 0, 0)
+  Purr.SDLWindow = Window
+
+  local SDLRenderer, RendererError = SDL.createRenderer(Purr.SDLWindow, 0, 0)
+
+  Logger:Assert(
+    SDLRenderer and type(SDLRenderer) ~= "string",
+    "Failed to create SDL renderer: %s",
+    tostring(RendererError or SDLRenderer)
+  )
+
+  Purr.SDLRenderer = SDLRenderer
 
   SDLTtf.init(SDL.flags.Everything)
 
-  Renderer.Fonts = {}
+  Purr.Running = true
+
+  Logger:Info("Renderer initialized")
 end
 
 function Renderer:LoadFont(FontName, FontSize)
-  Renderer.Fonts[FontName] = Renderer.Fonts[FontName] or {}
+  self.Fonts[FontName] = self.Fonts[FontName] or {}
 
   local FontPath = "/usr/share/fonts/noto/" .. FontName:gsub("NotoSans", "NotoSans-") .. ".ttf"
 
-  local Font, Error = SDLTtf.open(FontPath, FontSize)
+  local Font, FontError = SDLTtf.open(FontPath, FontSize)
 
-  Renderer.Fonts[FontName][FontSize] = Font
+  Logger:Assert(Font and type(Font) ~= "string", "Failed to load font %s: %s", FontPath, tostring(FontError or Font))
+
+  self.Fonts[FontName][FontSize] = Font
+
   return Font
 end
 
 function Renderer:GetFont(FontName, FontSize)
-  Renderer.Fonts[FontName] = Renderer.Fonts[FontName] or {}
+  self.Fonts[FontName] = self.Fonts[FontName] or {}
 
-  local Font = Renderer.Fonts[FontName][FontSize]
-
-  if Font then
-    return Font
-  end
-
-  return Renderer:LoadFont(FontName, FontSize)
+  return self.Fonts[FontName][FontSize] or self:LoadFont(FontName, FontSize)
 end
 
 function Renderer:GetColorFromColor4(Color)
@@ -154,24 +199,39 @@ function Renderer:GetColorFromColor4(Color)
 end
 
 function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y)
-  local Font = Renderer:GetFont(FontName, FontSize)
+  Logger:AssertType(Text, "string", "TextLabel.Text must be a string, got %s", type(Text))
 
-  local Surface = Font:renderUtf8(Text, "blended", Renderer:GetColorFromColor4(TextColor))
-  local Texture = Purr.SDLRenderer:createTextureFromSurface(Surface)
+  local Font = self:GetFont(FontName, FontSize)
+
+  local Surface, SurfaceError = Font:renderUtf8(Text, "blended", self:GetColorFromColor4(TextColor))
+
+  Logger:Assert(Surface and type(Surface) ~= "string", "Failed to render text: %s", tostring(SurfaceError or Surface))
+
+  local Texture, TextureError = Purr.SDLRenderer:createTextureFromSurface(Surface)
+
+  Logger:Assert(
+    Texture and type(Texture) ~= "string",
+    "Failed to create text texture: %s",
+    tostring(TextureError or Texture)
+  )
 
   local Format, Access, Width, Height = Texture:query()
 
   Purr.SDLRenderer:copy(Texture, nil, {
-    x = 0,
-    y = 0,
+    x = X or 0,
+    y = Y or 0,
     w = Width,
     h = Height,
   })
 end
 
 function Renderer:RenderInstance(Instance)
+  Logger:AssertType(Instance, "table", "Expected an instance table, got %s", type(Instance))
+
   if Instance.ClassName == "TextLabel" then
-    Renderer:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Instance.X, Instance.Y)
+    self:Text(Instance.Text, Instance.FontName, Instance.TextColor, Instance.FontSize, Instance.X, Instance.Y)
+  else
+    Logger:Warning("Unsupported instance class: %s", tostring(Instance.ClassName))
   end
 end
 
@@ -185,7 +245,7 @@ function Renderer:Frame()
   Purr.SDLRenderer:setDrawColor(0xFFFFFF)
   Purr.SDLRenderer:clear()
 
-  Renderer:RenderInstance(Purr.Tab)
+  self:RenderInstance(Purr.Tab)
 
   Purr.SDLRenderer:present()
 
@@ -194,16 +254,12 @@ end
 
 function Purr.Main()
   Purr:Initialize()
-  if Purr.Stop then
-    return
-  end
 
   while Purr.Running do
     Renderer:Frame()
   end
 end
 
-Purr.TabRuntime = TabRuntime
-Purr.Renderer = Renderer
-
 Purr.Main()
+
+return Purr
