@@ -5,7 +5,7 @@ local SDLTtf = require("SDL.ttf")
 local Logger = {}
 
 function Logger:Log(Level, ...)
-  io.stderr:write(string.format("[%s] %s\n", Level, string.format(...)))
+  io.stderr:write(string.format("Purr: %s: %s\n", Level, string.format(...)))
 end
 
 function Logger:Info(...)
@@ -62,6 +62,7 @@ local Purr = {
 local TabRuntime = {}
 Purr.TabRuntime = TabRuntime
 TabRuntime.Purr = {}
+TabRuntime.Purr.Logger = {}
 
 local TextLabelModule = {}
 
@@ -79,12 +80,54 @@ function TextLabelModule.new()
   }
 end
 
-function TabRuntime.Purr.TextLabel(Body, Options)
+function TabRuntime.Purr.new(TagName, Body, Options)
   Options = Options or {}
   Options.Body = Body
   TabRuntime.__Options = Options
 
-  return Nya.Instance.new("TextLabel")
+  return Nya.Instance.new(TagName)
+end
+
+function TabRuntime.Purr.Logger:Log(Level, ...)
+  io.stdout:write(string.format("Purr: %s: %s: %s\n", TabRuntime.FileName, Level, string.format(...)))
+end
+
+function TabRuntime.Purr.Logger:Info(...)
+  self:Log("Info", ...)
+end
+
+function TabRuntime.Purr.Logger:Warning(...)
+  self:Log("Warning", ...)
+end
+
+function TabRuntime.Purr.Logger:Error(...)
+  self:Log("Error", ...)
+end
+
+function TabRuntime.Purr.Logger:Assert(Value, ...)
+  if not Value then
+    local Message = string.format(...)
+    self:Error("%s", Message)
+    Purr.Tab.Exit = true
+  end
+
+  return Value
+end
+
+function TabRuntime.Purr.Logger:AssertType(Value, ExpectedType, ...)
+  if type(Value) ~= ExpectedType then
+    local Message
+
+    if select("#", ...) > 0 then
+      Message = string.format(...)
+    else
+      Message = string.format("Expected %s, got %s", ExpectedType, type(Value))
+    end
+
+    self:Error("%s", Message)
+  end
+
+  return Value
 end
 
 function TabRuntime:Initialize()
@@ -113,18 +156,16 @@ function Purr:InitializeTab()
   TabRuntime:Initialize()
 
   local TabFilePtr = Logger:Assert(io.open(self.TabFileName, "r"), "Couldn't open %s", self.TabFileName)
-
   local TabSource = TabFilePtr:read("*a")
   TabFilePtr:close()
 
   local TabFunction, LuaError = loadstring(TabSource)
-
   Logger:Assert(TabFunction, "Lua error in %s: %s", self.TabFileName, tostring(LuaError))
 
+  TabRuntime.FileName = Purr.TabFileName
   setfenv(TabFunction, self.TabRuntime)
 
   self.Tab = Logger:Assert(TabFunction(), "%s returned nil", self.TabFileName)
-
   Logger:Info("Loaded tab %s", self.TabFileName)
 end
 
@@ -236,6 +277,10 @@ function Renderer:RenderInstance(Instance)
 end
 
 function Renderer:Frame()
+  if Purr.Tab.Exit then
+    Purr.Running = false
+  end
+
   for Event in SDL.pollEvent() do
     if Event.type == SDL.event.Quit then
       Purr.Running = false
