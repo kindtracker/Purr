@@ -224,6 +224,7 @@ function TabRuntime.Purr.Logger:AssertType(Value, ExpectedType, ...)
     end
 
     self:Error("%s", Message)
+    Purr.Tab.Exit = true
   end
 
   return Value
@@ -343,6 +344,8 @@ function Renderer:GetFont(FontName, FontSize)
 end
 
 function Renderer:GetColorFromColor4(Color)
+  Color = Color or Nya.Color4.new(1, 1, 1, 0)
+
   local R = math.floor(Color.R * 255)
   local G = math.floor(Color.G * 255)
   local B = math.floor(Color.B * 255)
@@ -385,7 +388,7 @@ function Renderer:RenderText(Instance)
   self:Text(
     Instance.Text,
     Style.FontName or "NotoSansRegular",
-    Style.TextColor or Color3.new(1, 1, 1, 0),
+    Style.TextColor or Nya.Color3.new(1, 1, 1, 0),
     Style.FontSize or 16,
     Layout.Position.X,
     Layout.Position.Y,
@@ -395,10 +398,11 @@ function Renderer:RenderText(Instance)
 end
 
 function Renderer:RenderFrame(Instance)
-  local Layout = LayoutEngine:Calculate(Instance.Style, Purr.Window.Size)
+  local Style = Instance.Style
+  local Layout = LayoutEngine:Calculate(Style, Purr.Window.Size)
   local Position = Layout.Position
   local Size = Layout.Size
-  local Color = self:GetColorFromColor4(Instance.BackgroundColor)
+  local Color = self:GetColorFromColor4(Style.BackgroundColor)
 
   Purr.SDLRenderer:setDrawColor(Color)
   Purr.SDLRenderer:fillRect({
