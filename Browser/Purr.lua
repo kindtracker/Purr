@@ -85,7 +85,6 @@ local Purr = {
   SDLRenderer = nil,
   Window = {},
   Running = false,
-  Fps = math.floor(1000 / 60),
   Tab = {},
   TabFileName = "",
   TabRuntime = {},
@@ -348,6 +347,7 @@ end
 
 local Renderer = {}
 Renderer.Fonts = {}
+Renderer.BuiltTexts = {}
 
 Purr.Renderer = Renderer
 
@@ -414,18 +414,30 @@ function Renderer:GetColorFromColor4(Color)
 end
 
 function Renderer:Text(Text, FontName, TextColor, FontSize, X, Y, AnchorX, AnchorY)
-  Logger:AssertType(Text, "string", "Text.Text must be a string, got %s", type(Text))
+  Logger:AssertType(Text, "string", "Text must be a string, got %s", type(Text))
 
   local Font = self:GetFont(FontName, FontSize)
-  local Surface, SurfaceError = Font:renderUtf8(Text, "blended", self:GetColorFromColor4(TextColor))
-  Logger:Assert(Surface and type(Surface) ~= "string", "Failed to render text: %s", tostring(SurfaceError or Surface))
 
-  local Texture, TextureError = Purr.SDLRenderer:createTextureFromSurface(Surface)
-  Logger:Assert(
-    Texture and type(Texture) ~= "string",
-    "Failed to create text texture: %s",
-    tostring(TextureError or Texture)
-  )
+  self.BuiltTexts[FontName] = self.BuiltTexts[FontName] or {}
+  self.BuiltTexts[FontName][FontSize] = self.BuiltTexts[FontName][FontSize] or {}
+
+  local Texture = self.BuiltTexts[FontName][FontSize][Text]
+
+  if not Texture then
+    local SurfaceError, TextureError
+
+    Surface, SurfaceError = Font:renderUtf8(Text, "blended", self:GetColorFromColor4(TextColor))
+    Logger:Assert(Surface and type(Surface) ~= "string", "Failed to render text: %s", tostring(SurfaceError or Surface))
+
+    Texture, TextureError = Purr.SDLRenderer:createTextureFromSurface(Surface)
+    Logger:Assert(
+      Texture and type(Texture) ~= "string",
+      "Failed to create text texture: %s",
+      tostring(TextureError or Texture)
+    )
+
+    self.BuiltTexts[FontName][FontSize][Text] = Texture
+  end
 
   local Format, Access, Width, Height = Texture:query()
 
@@ -499,7 +511,6 @@ function Renderer:Frame()
     end
   end
 
-  Purr.SDLWindow:setSize(800, 600)
   local WindowSizeX, WindowSizeY = Purr.SDLWindow:getSize()
   Purr.Window.Size = Nya.Vector2.new(WindowSizeX, WindowSizeY)
 
@@ -507,8 +518,6 @@ function Renderer:Frame()
   Purr.SDLRenderer:clear()
   self:RenderInstance(Purr.Tab)
   Purr.SDLRenderer:present()
-
-  SDL.delay(Purr.Fps)
 end
 
 function Purr.Main()
