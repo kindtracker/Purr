@@ -272,19 +272,78 @@ end
 
 local LayoutEngine = {}
 
-function LayoutEngine:Calculate(Style, ParentSize)
+function LayoutEngine:Calculate(Style, Parent)
+  local ParentSize = Purr.Window.Size
+  local ParentPosition = Nya.Vector2.new(0, 0)
+
+  if Parent and Parent.AbsoluteSize and Parent.AbsolutePosition then
+    ParentSize = Parent.AbsoluteSize
+    ParentPosition = Parent.AbsolutePosition
+  end
+
   local Position = Style.Position or Nya.UDim2.new(0, 0, 0, 0)
   local Size = Style.Size or Nya.UDim2.new(0, 0, 0, 0)
   local AnchorPoint = Style.AnchorPoint or Nya.Vector2.new(0, 0)
 
+  local AbsoluteSize =
+    Nya.Vector2.new(ParentSize.X * Size.X.Scale + Size.X.Offset, ParentSize.Y * Size.Y.Scale + Size.Y.Offset)
+
+  local AbsolutePosition = Nya.Vector2.new(
+    ParentPosition.X + ParentSize.X * Position.X.Scale + Position.X.Offset,
+    ParentPosition.Y + ParentSize.Y * Position.Y.Scale + Position.Y.Offset
+  )
+
+  AbsolutePosition = Nya.Vector2.new(
+    AbsolutePosition.X - AbsoluteSize.X * AnchorPoint.X,
+    AbsolutePosition.Y - AbsoluteSize.Y * AnchorPoint.Y
+  )
+
   return {
-    Position = Nya.Vector2.new(
-      ParentSize.X * Position.X.Scale + Position.X.Offset,
-      ParentSize.Y * Position.Y.Scale + Position.Y.Offset
-    ),
-    Size = Nya.Vector2.new(ParentSize.X * Size.X.Scale + Size.X.Offset, ParentSize.Y * Size.Y.Scale + Size.Y.Offset),
+    Position = AbsolutePosition,
+    Size = AbsoluteSize,
     AnchorPoint = AnchorPoint,
   }
+end
+
+local Renderer = {}
+
+function Renderer:RenderText(Instance)
+  local Style = Instance.Style
+  local Layout = LayoutEngine:Calculate(Style, Instance.Parent)
+
+  Instance.AbsolutePosition = Layout.Position
+  Instance.AbsoluteSize = Layout.Size
+
+  self:Text(
+    Instance.Text,
+    Style.FontName,
+    Style.TextColor,
+    Style.FontSize,
+    Layout.Position.X,
+    Layout.Position.Y,
+    Layout.AnchorPoint.X,
+    Layout.AnchorPoint.Y
+  )
+end
+
+function Renderer:RenderFrame(Instance)
+  local Style = Instance.Style
+  local Layout = LayoutEngine:Calculate(Style, Instance.Parent)
+
+  Instance.AbsolutePosition = Layout.Position
+  Instance.AbsoluteSize = Layout.Size
+
+  Purr.SDLRenderer:setDrawColor(self:GetColorFromColor4(Style.BackgroundColor))
+  Purr.SDLRenderer:fillRect({
+    x = Layout.Position.X,
+    y = Layout.Position.Y,
+    w = Layout.Size.X,
+    h = Layout.Size.Y,
+  })
+
+  for _, Child in pairs(Instance:GetChildren()) do
+    self:RenderInstance(Child)
+  end
 end
 
 local Renderer = {}
@@ -383,12 +442,12 @@ end
 
 function Renderer:RenderText(Instance)
   local Style = Instance.Style
-  local Layout = LayoutEngine:Calculate(Style, Purr.Window.Size)
+  local Layout = LayoutEngine:Calculate(Style, Instance.Parent)
 
   self:Text(
     Instance.Text,
     Style.FontName or "NotoSansRegular",
-    Style.TextColor or Nya.Color3.new(1, 1, 1, 0),
+    Style.TextColor or Nya.Color4.new(0, 0, 0, 1),
     Style.FontSize or 16,
     Layout.Position.X,
     Layout.Position.Y,
@@ -399,7 +458,7 @@ end
 
 function Renderer:RenderFrame(Instance)
   local Style = Instance.Style
-  local Layout = LayoutEngine:Calculate(Style, Purr.Window.Size)
+  local Layout = LayoutEngine:Calculate(Style, Instance.Parent)
   local Position = Layout.Position
   local Size = Layout.Size
   local Color = self:GetColorFromColor4(Style.BackgroundColor)
