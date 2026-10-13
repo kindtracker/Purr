@@ -156,16 +156,16 @@ function Instance.new(ClassName, Parent)
     end
   end
 
-  local function RemoveChild(Child)
-    Properties.Children[Child.UniqueId] = nil
-    Properties.ChildRemoved:Fire(Child)
-    Properties.DescendantRemoving:Fire(Child)
+  local function RemoveChild(Parent, Child)
+    Parent.Children[Child.UniqueId] = nil
+    Parent.ChildRemoved:Fire(Child)
+    Parent.DescendantRemoving:Fire(Child)
   end
 
-  local function AddChild(Child)
-    Properties.Children[Child.UniqueId] = Child
-    Properties.ChildAdded:Fire(Child)
-    Properties.DescendantAdded:Fire(Child)
+  local function AddChild(Parent, Child)
+    Parent.Children[Child.UniqueId] = Child
+    Parent.ChildAdded:Fire(Child)
+    Parent.DescendantAdded:Fire(Child)
   end
 
   setmetatable(self, {
@@ -182,7 +182,6 @@ function Instance.new(ClassName, Parent)
         return PropertySignals[Key]
       end
 
-      -- Instance.ChildName
       return FindChild(Key)
     end,
 
@@ -195,13 +194,13 @@ function Instance.new(ClassName, Parent)
         end
 
         if OldValue then
-          RemoveChild(self)
+          RemoveChild(OldValue, self)
         end
 
         Properties.Parent = Value
 
         if Value then
-          AddChild(self)
+          AddChild(Value, self)
           Properties.AncestryChanged:Fire(self, Value)
         end
       else

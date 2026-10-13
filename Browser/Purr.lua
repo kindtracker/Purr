@@ -411,6 +411,10 @@ function Renderer:RenderFrame(Instance)
     w = Size.X,
     h = Size.Y,
   })
+
+  for _, Child in pairs(Instance:GetChildren()) do
+    self:RenderInstance(Child)
+  end
 end
 
 function Renderer:RenderInstance(Instance)
