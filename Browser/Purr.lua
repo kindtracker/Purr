@@ -265,19 +265,23 @@ function Purr:InitializeTab()
   TabRuntime.FileName = Purr.TabFileName
   setfenv(TabFunction, self.TabRuntime)
 
-  self.Tab = Logger:Assert(TabFunction(), "%s returned nil", self.TabFileName)
+  Purr.Tab = Logger:Assert(TabFunction(), "%s returned nil", self.TabFileName)
   Logger:Info("Loaded tab %s", self.TabFileName)
 end
 
 local LayoutEngine = {}
 
 function LayoutEngine:Calculate(Style, Parent)
-  local ParentSize = Purr.Window.Size
-  local ParentPosition = Nya.Vector2.new(0, 0)
+  local ParentPosition
+  local ParentSize
 
-  if Parent and Parent.AbsoluteSize and Parent.AbsolutePosition then
-    ParentSize = Parent.AbsoluteSize
-    ParentPosition = Parent.AbsolutePosition
+  if Parent then
+    local ParentLayout = LayoutEngine:Calculate(Parent.Style, Parent.Parent)
+    ParentPosition = ParentLayout.Position
+    ParentSize = ParentLayout.Size
+  else
+    ParentPosition = Nya.Vector2.new(0, 0)
+    ParentSize = Purr.Window.Size
   end
 
   local Position = Style.Position or Nya.UDim2.new(0, 0, 0, 0)
